@@ -8,7 +8,6 @@
 #import "RNCWKWebView.h"
 #import <React/RCTConvert.h>
 #import <React/RCTAutoInsetsProtocol.h>
-#import "RNCWKProcessPoolManager.h"
 #import <UIKit/UIKit.h>
 
 #import "objc/runtime.h"
@@ -61,6 +60,7 @@ static NSString *const MessageHanderName = @"ReactNative";
   return _webkitAvailable;
 }
 
+
 - (instancetype)initWithFrame:(CGRect)frame
 {
   if ((self = [super initWithFrame:frame])) {
@@ -81,14 +81,6 @@ static NSString *const MessageHanderName = @"ReactNative";
     };
 
     WKWebViewConfiguration *wkWebViewConfig = [WKWebViewConfiguration new];
-    if (_incognito) {
-      wkWebViewConfig.websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
-    } else if (_cacheEnabled) {
-      wkWebViewConfig.websiteDataStore = [WKWebsiteDataStore defaultDataStore];
-    }
-    if(self.useSharedProcessPool) {
-      wkWebViewConfig.processPool = [[RNCWKProcessPoolManager sharedManager] sharedProcessPool];
-    }
     wkWebViewConfig.userContentController = [WKUserContentController new];
     [wkWebViewConfig.userContentController addScriptMessageHandler: self name: MessageHanderName];
     wkWebViewConfig.allowsInlineMediaPlayback = _allowsInlineMediaPlayback;
@@ -127,13 +119,6 @@ static NSString *const MessageHanderName = @"ReactNative";
   }
 }
 
-// Update webview property when the component prop changes.
-- (void)setAllowsBackForwardNavigationGestures:(BOOL)allowsBackForwardNavigationGestures {
-  _allowsBackForwardNavigationGestures = allowsBackForwardNavigationGestures;
-  _webView.allowsBackForwardNavigationGestures = _allowsBackForwardNavigationGestures;
-}
-
-
 - (void)removeFromSuperview
 {
     if (_webView) {
@@ -144,6 +129,17 @@ static NSString *const MessageHanderName = @"ReactNative";
     }
 
     [super removeFromSuperview];
+}
+
+- (WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)navigationAction windowFeatures:(WKWindowFeatures *)windowFeatures
+{
+
+  if (!navigationAction.targetFrame.isMainFrame) {
+
+    [webView loadRequest:navigationAction.request];
+  }
+
+  return nil;
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context{
@@ -323,8 +319,8 @@ static NSString *const MessageHanderName = @"ReactNative";
 /**
 * alert
 */
-- (void)webView:(WKWebView *)webView runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(void))completionHandler
-{
+- (void)webView:(WKWebView *)webView runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(void))completionHandler 
+{ 
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"" message:message preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Ok" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         completionHandler();
@@ -472,13 +468,6 @@ static NSString *const MessageHanderName = @"ReactNative";
       // a new URL in the WebView before the previous one came back. We can just
       // ignore these since they aren't real errors.
       // http://stackoverflow.com/questions/1024748/how-do-i-fix-nsurlerrordomain-error-999-in-iphone-3-0-os
-      return;
-    }
-
-    if ([error.domain isEqualToString:@"WebKitErrorDomain"] && error.code == 102) {
-      // Error code 102 "Frame load interrupted" is raised by the WKWebView
-      // when the URL is from an http redirect. This is a common pattern when
-      // implementing OAuth with a WebView.
       return;
     }
 
